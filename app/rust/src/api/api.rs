@@ -8,8 +8,10 @@ use chrono::NaiveDate;
 use flutter_rust_bridge::frb;
 use simplelog::{Config, LevelFilter, WriteLogger};
 
+use crate::utils;
 use crate::gps_processor::{GpsProcessor, ProcessResult};
 use crate::journey_bitmap::JourneyBitmap;
+use crate::journey_bitmap::{TILE_WIDTH_OFFSET, MAP_WIDTH_OFFSET, TILE_WIDTH};
 use crate::journey_data::JourneyData;
 use crate::journey_header::JourneyHeader;
 use crate::map_renderer::{MapRenderer, RenderResult};
@@ -149,7 +151,31 @@ pub fn get_map_renderer_proxy_for_journey_date_range(
     Ok(MapRendererProxy::Simple(map_renderer))
 }
 
-pub fn get_map_renderer_proxy_for_journey(journey_id: &str) -> Result<MapRendererProxy> {
+pub fn get_camera_initial_option(journey_bitmap: JourneyBitmap) -> (i32, i32) {
+    // get a visited point in given journey_bitmap  block.is_visited()
+    for (tile_pos, tile) in &journey_bitmap.tiles {
+        for (block_pos, block) in &tile.blocks {
+            for x in 0..63 {
+                for y in 0..63 {
+                    if block.visited(x, y) {
+                        let (tile_x, tile_y) = tile_pos;
+                        let (block_x, block_y) = block_pos;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let blockzoomed_x : i32 = TILE_WIDTH * tile_x + block_x;  
+    let blockzoomed_y : i32 = TILE_WIDTH * tile_y + block_y; 
+    // convert (x,y)
+    let (lng, lat) = utils::tile_x_y_to_lng_lat(blockzoomed_x, blockzoomed_y, TILE_WIDTH_OFFSET + MAP_WIDTH_OFFSET);
+    // return (longitude, latitude).  might include zoom config as well
+    (lng, lat)
+}
+
+pub fn get_map_renderer_proxy_for_journey(journey_id: &str) -> Result<(MapRendererProxy, (i32, i32))> {
     let journey_data = get()
         .storage
         .with_db_txn(|txn| txn.get_journey(journey_id))?;
@@ -162,9 +188,11 @@ pub fn get_map_renderer_proxy_for_journey(journey_id: &str) -> Result<MapRendere
             bitmap
         }
     };
-
+    
+    let (camera_lng, camera_lat) = get_camera_initial_option(journey_bitmap);
+    let camera_coordinate = (camera_lng, camera_lat);
     let map_renderer = MapRenderer::new(journey_bitmap);
-    Ok(MapRendererProxy::Simple(map_renderer))
+    Ok((MapRendererProxy::Simple(map_renderer), camera_coordinate))
 }
 
 pub fn on_location_update(

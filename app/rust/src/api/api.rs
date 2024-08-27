@@ -153,14 +153,14 @@ pub fn get_map_renderer_proxy_for_journey_date_range(
 
 pub fn get_camera_initial_option(journey_bitmap: JourneyBitmap) -> (i32, i32) {
     // get a visited point in given journey_bitmap  block.is_visited()
-    for (tile_pos, tile) in &journey_bitmap.tiles {
+    'outer: for (tile_pos, tile) in &journey_bitmap.tiles {
         for (block_pos, block) in &tile.blocks {
             for x in 0..63 {
                 for y in 0..63 {
                     if block.visited(x, y) {
                         let (tile_x, tile_y) = tile_pos;
                         let (block_x, block_y) = block_pos;
-                        break;
+                        break 'outer;
                     }
                 }
             }

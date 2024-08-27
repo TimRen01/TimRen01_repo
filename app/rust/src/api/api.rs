@@ -151,15 +151,17 @@ pub fn get_map_renderer_proxy_for_journey_date_range(
     Ok(MapRendererProxy::Simple(map_renderer))
 }
 
-pub fn get_camera_initial_option(journey_bitmap: JourneyBitmap) -> (i32, i32) {
+pub fn get_camera_initial_option(journey_bitmap: &JourneyBitmap) -> (f64, f64) {
+    let (mut tile_x, mut tile_y) =  (0i32, 0i32);
+    let (mut block_x, mut block_y) =  (0i32, 0i32);
     // get a visited point in given journey_bitmap  block.is_visited()
     'outer: for (tile_pos, tile) in &journey_bitmap.tiles {
         for (block_pos, block) in &tile.blocks {
             for x in 0..63 {
                 for y in 0..63 {
-                    if block.visited(x, y) {
-                        let (tile_x, tile_y) = tile_pos;
-                        let (block_x, block_y) = block_pos;
+                    if block.is_visited(x, y) {
+                        (tile_x, tile_y) = (tile_pos.0 as i32, tile_pos.1 as i32);
+                        (block_x, block_y) = (block_pos.0 as i32, block_pos.1 as i32);
                         break 'outer;
                     }
                 }
@@ -167,15 +169,13 @@ pub fn get_camera_initial_option(journey_bitmap: JourneyBitmap) -> (i32, i32) {
         }
     }
 
-    let blockzoomed_x : i32 = TILE_WIDTH * tile_x + block_x;  
-    let blockzoomed_y : i32 = TILE_WIDTH * tile_y + block_y; 
-    // convert (x,y)
-    let (lng, lat) = utils::tile_x_y_to_lng_lat(blockzoomed_x, blockzoomed_y, TILE_WIDTH_OFFSET + MAP_WIDTH_OFFSET);
-    // return (longitude, latitude).  might include zoom config as well
+    let blockzoomed_x : i32 = TILE_WIDTH as i32 * tile_x + block_x;  
+    let blockzoomed_y : i32 = TILE_WIDTH as i32 * tile_y + block_y;
+    let (lng, lat) = utils::tile_x_y_to_lng_lat(blockzoomed_x, blockzoomed_y, (TILE_WIDTH_OFFSET + MAP_WIDTH_OFFSET).into());
     (lng, lat)
 }
 
-pub fn get_map_renderer_proxy_for_journey(journey_id: &str) -> Result<(MapRendererProxy, (i32, i32))> {
+pub fn get_map_renderer_proxy_for_journey(journey_id: &str) -> Result<(MapRendererProxy, (f64, f64))> {
     let journey_data = get()
         .storage
         .with_db_txn(|txn| txn.get_journey(journey_id))?;
@@ -189,7 +189,7 @@ pub fn get_map_renderer_proxy_for_journey(journey_id: &str) -> Result<(MapRender
         }
     };
     
-    let (camera_lng, camera_lat) = get_camera_initial_option(journey_bitmap);
+    let (camera_lng, camera_lat) = get_camera_initial_option(&journey_bitmap);
     let camera_coordinate = (camera_lng, camera_lat);
     let map_renderer = MapRenderer::new(journey_bitmap);
     Ok((MapRendererProxy::Simple(map_renderer), camera_coordinate))
